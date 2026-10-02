@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#ff6fae">
+<title>台股當沖計算機</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f6f7fb;color:#222;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}
+.container{max-width:760px;margin:auto;padding:18px 14px 40px}
+h1{margin:4px 0 5px;font-size:27px}
+.sub{color:#777;font-size:13px;margin-bottom:16px}
+.card{background:#fff;border-radius:18px;padding:16px;margin-bottom:13px;box-shadow:0 2px 12px rgba(0,0,0,.06)}
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+button{border:0;border-radius:12px;padding:12px;font-size:15px;font-weight:700;background:#eee;color:#555}
+button.active{background:#ff6fae;color:white}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.field label{display:block;font-size:13px;color:#666;margin-bottom:6px}
+input,select{width:100%;padding:12px;border:1px solid #ddd;border-radius:11px;font-size:17px;background:#fff}
+.quick{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.quick button{padding:8px 11px;font-size:13px;background:#f1f1f5}
+.result{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.metric{background:#f7f7fa;border-radius:13px;padding:12px}
+.metric .label{font-size:12px;color:#777}
+.metric .value{font-size:21px;font-weight:800;margin-top:3px}
+.big{background:#fff0f6;border:1px solid #ffd2e4}
+.big .value{font-size:28px}
+.profit{color:#d92d72}.loss{color:#1677c8}.muted{color:#777}
+.break{font-size:14px;margin-top:12px;padding:11px;border-radius:11px;background:#f4f4f7}
+.details{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:14px}
+.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee}
+.row span:last-child{font-weight:700}
+.note{font-size:12px;line-height:1.6;color:#777}
+.section-title{font-size:16px;font-weight:800;margin-bottom:10px}
+.price-table{width:100%;border-collapse:collapse;font-size:13px}
+.price-table th,.price-table td{padding:8px 5px;text-align:right;border-bottom:1px solid #eee}
+.price-table th:first-child,.price-table td:first-child{text-align:left}
+.footer{text-align:center;color:#999;font-size:11px;margin-top:15px}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.result{grid-template-columns:1fr 1fr}.container{padding-top:12px}}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>📈 台股當沖計算機</h1>
+<div class="sub">現股當沖｜先買後賣 / 先賣後買｜即時試算</div>
+
+<div class="card">
+  <div class="tabs">
+    <button id="longBtn" class="active" onclick="setSide('long')">做多：先買後賣</button>
+    <button id="shortBtn" onclick="setSide('short')">做空：先賣後買</button>
+  </div>
+
+  <div class="grid">
+    <div class="field">
+      <label id="openLabel">買進價格（開倉）</label>
+      <input id="open" type="number" inputmode="decimal" step="0.01" value="100">
+      <div class="quick">
+        <button onclick="setVal('open',50)">50</button><button onclick="setVal('open',100)">100</button><button onclick="setVal('open',200)">200</button>
+      </div>
+    </div>
+    <div class="field">
+      <label id="closeLabel">賣出價格（平倉）</label>
+      <input id="close" type="number" inputmode="decimal" step="0.01" value="101">
+    </div>
+    <div class="field">
+      <label>股數</label>
+      <input id="shares" type="number" inputmode="numeric" step="1" value="1000">
+      <div class="quick">
+        <button onclick="setVal('shares',1000)">1張</button><button onclick="setVal('shares',2000)">2張</button><button onclick="setVal('shares',5000)">5張</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>手續費折數（6＝六折）</label>
+      <input id="discount" type="number" inputmode="decimal" step="0.1" value="6">
+      <div class="quick">
+        <button onclick="setVal('discount',6)">6折</button><button onclick="setVal('discount',3.8)">3.8折</button><button onclick="setVal('discount',2.8)">2.8折</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>每筆手續費低消（元）</label>
+      <input id="minFee" type="number" inputmode="numeric" step="1" value="20">
+    </div>
+    <div class="field">
+      <label>當沖證交稅率</label>
+      <input id="tax" type="number" inputmode="decimal" step="0.01" value="0.15">
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">試算結果</div>
+  <div class="result">
+    <div class="metric big">
+      <div class="label">淨損益</div><div id="net" class="value">—</div>
+    </div>
+    <div class="metric big">
+      <div class="label">報酬率</div><div id="roi" class="value">—</div>
+    </div>
+    <div class="metric"><div class="label">價差損益</div><div id="gross" class="value">—</div></div>
+    <div class="metric"><div class="label">來回總成本</div><div id="cost" class="value">—</div></div>
+  </div>
+  <div class="break">損益兩平價格：<strong id="be">—</strong>　｜　距離開倉價 <strong id="bePct">—</strong></div>
+</div>
+
+<div class="card">
+  <div class="section-title">交易成本明細</div>
+  <div class="details">
+    <div>
+      <div class="row"><span>開倉金額</span><span id="openAmt">—</span></div>
+      <div class="row"><span>開倉手續費</span><span id="openFee">—</span></div>
+      <div class="row"><span>平倉金額</span><span id="closeAmt">—</span></div>
+    </div>
+    <div>
+      <div class="row"><span>平倉手續費</span><span id="closeFee">—</span></div>
+      <div class="row"><span>證交稅</span><span id="taxAmt">—</span></div>
+      <div class="row"><span>手續費＋稅</span><span id="allCost">—</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-title">📊 平倉價格快速試算</div>
+  <div class="note" style="margin-bottom:8px">以目前開倉價為基準，列出附近價格扣除完整交易成本後的淨損益。</div>
+  <table class="price-table">
+    <thead><tr><th>平倉價</th><th>漲跌</th><th>淨損益</th><th>報酬率</th></tr></thead>
+    <tbody id="table"></tbody>
+  </table>
+</div>
+
+<div class="card">
+  <div class="section-title">⚙️ 計算規則</div>
+  <div class="note">
+    手續費基準 0.1425% × 折數；開倉、平倉各收一次。每筆手續費低於低消時以低消計。
+    現股當沖股票證交稅預設 0.15%，只在賣出／當沖賣出方向計算。
+    實際手續費、低消與券商計算進位方式請以你的券商對帳單為準。
+  </div>
+</div>
+<div class="footer">本工具僅供交易成本與損益試算，不構成投資建議。</div>
+</div>
+
+<script>
+let side='long';
+const feeRate=0.001425;
+
+function $(id){return document.getElementById(id)}
+function setVal(id,v){$(id).value=v;calc()}
+function money(n){return 'NT$ '+Math.round(n).toLocaleString()}
+function price(n){return Number(n).toFixed(2)}
+function fee(amount){
+  const d=Math.max(0,parseFloat($('discount').value)||0);
+  const min=Math.max(0,parseFloat($('minFee').value)||0);
+  return Math.max(Math.floor(amount*feeRate*d/10)/10,min); // 顯示試算；避免過度假設券商進位
+}
+function actualFee(amount){
+  const d=Math.max(0,parseFloat($('discount').value)||0);
+  const min=Math.max(0,parseFloat($('minFee').value)||0);
+  return Math.max(Math.floor(amount*feeRate*d),min);
+}
+function calcAt(closePrice){
+  const o=parseFloat($('open').value)||0;
+  const q=Math.max(0,parseInt($('shares').value)||0);
+  const taxRate=(parseFloat($('tax').value)||0)/100;
+  if(!o||!q||!closePrice) return null;
+  const openAmt=o*q, closeAmt=closePrice*q;
+  const openFee=actualFee(openAmt), closeFee=actualFee(closeAmt);
+  const tax=closeAmt*taxRate;
+  const gross=side==='long' ? (closePrice-o)*q : (o-closePrice)*q;
+  const net=gross-openFee-closeFee-tax;
+  const roi=net/openAmt*100;
+  return {openAmt,closeAmt,openFee,closeFee,tax,gross,net,roi,cost:openFee+closeFee+tax};
+}
+function setSide(s){
+  side=s;
+  $('longBtn').classList.toggle('active',s==='long');
+  $('shortBtn').classList.toggle('active',s==='short');
+  $('openLabel').textContent=s==='long'?'買進價格（開倉）':'賣出價格（開倉）';
+  $('closeLabel').textContent=s==='long'?'賣出價格（平倉）':'買進價格（平倉）';
+  calc();
+}
+function calc(){
+  const o=parseFloat($('open').value)||0, q=parseInt($('shares').value)||0;
+  const c=parseFloat($('close').value)||0;
+  const r=calcAt(c);
+  if(!r)return;
+  $('net').textContent=(r.net>=0?'+':'')+money(r.net);
+  $('roi').textContent=(r.roi>=0?'+':'')+r.roi.toFixed(2)+'%';
+  $('gross').textContent=(r.gross>=0?'+':'')+money(r.gross);
+  $('cost').textContent=money(r.cost);
+  $('net').className='value '+(r.net>=0?'profit':'loss');
+  $('roi').className='value '+(r.net>=0?'profit':'loss');
+  $('openAmt').textContent=money(r.openAmt);
+  $('openFee').textContent=money(r.openFee);
+  $('closeAmt').textContent=money(r.closeAmt);
+  $('closeFee').textContent=money(r.closeFee);
+  $('taxAmt').textContent=money(r.tax);
+  $('allCost').textContent=money(r.cost);
+
+  // Binary-search break-even price, matching the same fee rules.
+  let lo=Math.max(0.01,o*0.5), hi=o*1.5;
+  if(side==='short'){lo=0.01;hi=o*1.5}
+  for(let i=0;i<70;i++){
+    const mid=(lo+hi)/2, x=calcAt(mid);
+    if(side==='long'){
+      if(x.net>=0) hi=mid; else lo=mid;
+    }else{
+      if(x.net>=0) lo=mid; else hi=mid;
+    }
+  }
+  const be=(lo+hi)/2;
+  $('be').textContent=price(be);
+  $('bePct').textContent=((be/o-1)*100).toFixed(2)+'%';
+
+  buildTable(o);
+}
+function buildTable(o){
+  const q=parseInt($('shares').value)||0;
+  if(!o||!q){$('table').innerHTML='';return}
+  // roughly ±1% to ±5%, respecting common Taiwan price ticks
+  let rows=[];
+  const pct=[-0.05,-0.03,-0.02,-0.01,-0.005,0,0.005,0.01,0.02,0.03,0.05];
+  for(const p of pct){
+    let cp=o*(1+p);
+    cp=tick(cp);
+    const r=calcAt(cp);
+    if(r) rows.push({cp,r});
+  }
+  $('table').innerHTML=rows.map(x=>{
+    const cls=x.r.net>=0?'profit':'loss';
+    const move=(x.cp/o-1)*100;
+    return `<tr><td>${price(x.cp)}</td><td>${move>=0?'+':''}${move.toFixed(2)}%</td><td class="${cls}">${x.r.net>=0?'+':''}${Math.round(x.r.net).toLocaleString()}</td><td class="${cls}">${x.r.roi>=0?'+':''}${x.r.roi.toFixed(2)}%</td></tr>`;
+  }).join('');
+}
+function tick(p){
+  if(p<10)return Math.round(p*100)/100;
+  if(p<50)return Math.round(p*20)/20;
+  if(p<100)return Math.round(p*10)/10;
+  if(p<500)return Math.round(p*2)/2;
+  if(p<1000)return Math.round(p);
+  return Math.round(p/5)*5;
+}
+document.querySelectorAll('input').forEach(x=>x.addEventListener('input',calc));
+calc();
+</script>
+</body>
+</html>
